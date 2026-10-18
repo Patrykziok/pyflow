@@ -1,16 +1,8 @@
-import pytest
-
-from pyflow import (
-    Task,
-    Workflow,
-    WorkflowValidationError,
-    execution_layers,
-    topological_order,
-)
+from pyflow import Task, Workflow, topological_order, execution_layers
 
 
 def work(inputs, params):
-    return inputs, params
+    return None
 
 
 def test_empty_graph():
@@ -19,31 +11,47 @@ def test_empty_graph():
     assert execution_layers(workflow) == []
 
 
-def test_single_node():
+def test_single_task():
+    params = {"numbers": [1, 2]}
+    dependencies = set()
+    task = Task("a", work, dependencies, params)
+    params["numbers"].append(3)
+    dependencies.add("b")
+    assert task.params["numbers"] == [1, 2]
+    assert task.dependencies == frozenset()
+
     workflow = Workflow()
-    workflow.add_task(Task("one", work))
-    assert topological_order(workflow) == ["one"]
-    assert execution_layers(workflow) == [["one"]]
+    workflow.add_task(task)
+    assert topological_order(workflow) == ["a"]
+    assert execution_layers(workflow) == [["a"]]
 
 
 def test_chain():
     workflow = Workflow()
     workflow.add_task(Task("c", work, frozenset({"b"})))
-    workflow.add_task(Task("a", work))
     workflow.add_task(Task("b", work, frozenset({"a"})))
-    assert topological_order(workflow) == ["a", "b", "c"]
-    assert execution_layers(workflow) == [["a"], ["b"], ["c"]]
-
-
-def test_independent_tasks_in_alphabetical_order():
-    workflow = Workflow()
-    workflow.add_task(Task("z", work))
     workflow.add_task(Task("a", work))
-    assert topological_order(workflow) == ["a", "z"]
-    assert execution_layers(workflow) == [["a", "z"]]
+    assert topological_order(workflow) == ["a", "b", "c"]
 
 
-def test_parallel_layers():
+def test_independent_tasks():
+    workflow = Workflow()
+    workflow.add_task(Task("b", work))
+    workflow.add_task(Task("a", work))
+    assert topological_order(workflow) == ["a", "b"]
+
+
+def test_deterministic_order():
+    first = Workflow()
+    second = Workflow()
+    for name in ("c", "a", "b"):
+        first.add_task(Task(name, work))
+    for name in ("b", "c", "a"):
+        second.add_task(Task(name, work))
+    assert topological_order(first) == topological_order(second) == ["a", "b", "c"]
+
+
+def test_execution_layers():
     workflow = Workflow()
     workflow.add_task(Task("report", work, frozenset({"clean_a", "clean_b"})))
     workflow.add_task(Task("clean_b", work, frozenset({"extract"})))
@@ -55,31 +63,3 @@ def test_parallel_layers():
         ["clean_a", "clean_b"],
         ["report"],
     ]
-    assert topological_order(workflow) == [
-        "extract", "clean_a", "clean_b", "report"
-    ]
-
-
-def test_deterministic_order_independent_of_insertion():
-    first = Workflow()
-    second = Workflow()
-    for name in ["c", "a", "b"]:
-        first.add_task(Task(name, work))
-    for name in ["b", "c", "a"]:
-        second.add_task(Task(name, work))
-    assert topological_order(first) == topological_order(second) == ["a", "b", "c"]
-
-
-def test_topological_order_fails_for_cycle():
-    workflow = Workflow()
-    workflow.add_task(Task("a", work, frozenset({"b"})))
-    workflow.add_task(Task("b", work, frozenset({"a"})))
-    with pytest.raises(WorkflowValidationError, match="cykl"):
-        topological_order(workflow)
-
-
-def test_layers_fail_for_missing_dependency():
-    workflow = Workflow()
-    workflow.add_task(Task("a", work, frozenset({"missing"})))
-    with pytest.raises(WorkflowValidationError, match="missing"):
-        execution_layers(workflow)

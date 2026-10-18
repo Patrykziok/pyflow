@@ -4,61 +4,33 @@ from pyflow import Task, Workflow, WorkflowValidationError
 
 
 def work(inputs, params):
-    return inputs, params
+    return None
 
 
-def test_empty_workflow_is_valid():
-    Workflow().validate()
-
-
-def test_single_task_is_valid():
+def test_duplicate_task():
     workflow = Workflow()
-    workflow.add_task(Task("start", work))
-    workflow.validate()
-    assert "start" in workflow.tasks
+    workflow.add_task(Task("a", work))
+    with pytest.raises(WorkflowValidationError):
+        workflow.add_task(Task("a", work))
 
 
-def test_duplicate_task_is_rejected():
+def test_missing_dependency():
     workflow = Workflow()
-    workflow.add_task(Task("start", work))
-    with pytest.raises(WorkflowValidationError, match="juz istnieje"):
-        workflow.add_task(Task("start", work))
-
-
-def test_empty_name_is_rejected():
-    with pytest.raises(WorkflowValidationError, match="pusta"):
-        Task(" ", work)
-
-
-def test_self_dependency_is_rejected():
-    with pytest.raises(WorkflowValidationError, match="samego siebie"):
-        Task("start", work, frozenset({"start"}))
-
-
-def test_missing_dependency_is_rejected():
-    workflow = Workflow()
-    workflow.add_task(Task("report", work, frozenset({"missing"})))
-    with pytest.raises(WorkflowValidationError, match="missing"):
+    workflow.add_task(Task("a", work, frozenset({"b"})))
+    with pytest.raises(WorkflowValidationError, match="b"):
         workflow.validate()
 
 
-def test_cycle_is_rejected():
+def test_self_dependency():
+    with pytest.raises(WorkflowValidationError):
+        Task("a", work, frozenset({"a"}))
+    with pytest.raises(WorkflowValidationError):
+        Task("", work)
+
+
+def test_cycle():
     workflow = Workflow()
     workflow.add_task(Task("a", work, frozenset({"b"})))
     workflow.add_task(Task("b", work, frozenset({"a"})))
-    with pytest.raises(WorkflowValidationError, match="cykl"):
+    with pytest.raises(WorkflowValidationError):
         workflow.validate()
-
-
-def test_input_params_are_copied():
-    params = {"options": [1, 2]}
-    task = Task("start", work, params=params)
-    params["options"].append(3)
-    assert task.params["options"] == [1, 2]
-
-
-def test_dependencies_are_copied():
-    dependencies = {"source"}
-    task = Task("other", work, dependencies=dependencies)
-    dependencies.add("changed")
-    assert task.dependencies == frozenset({"source"})

@@ -13,13 +13,15 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-## Przykład
+## Przykład workflowu
 
 ```python
 from pyflow import Task, Workflow, topological_order, execution_layers
 
+
 def work(inputs, params):
     return None
+
 
 workflow = Workflow()
 workflow.add_task(Task("extract", work))
@@ -34,6 +36,7 @@ print(execution_layers(workflow))
 
 ## Algorytm i złożoność
 
-Do sprawdzania cykli wykorzystano DFS, a do ustalania kolejności zadań algorytm Kahna z kopcem. Warstwy grupują zadania, których zależności zostały już spełnione.
-
-Dla V zadań i E zależności przejście po grafie ma złożoność O(V + E). Sortowanie nazw i użycie kopca zwiększają koszt do O(V + E + V log V + E log E) w najgorszym przypadku.
+Walidacja cykli: DFS, O(V + E).
+Sortowanie topologiczne: algorytm Kahna z kopcem, O(E + V log V).
+Warstwy wykonania: sortowanie gotowych zadań, O(E + V log V).
+V - liczba zadań, E - liczba zależności.

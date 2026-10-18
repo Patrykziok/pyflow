@@ -1,14 +1,13 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
-from types import MappingProxyType
 from typing import Any, Callable, Mapping
 
 
 class WorkflowValidationError(ValueError):
-    """Blad definicji zadania lub grafu workflowu."""
+    pass
 
 
-@dataclass(frozen=True)
+@dataclass
 class Task:
     name: str
     function: Callable[[Mapping[str, Any], Mapping[str, Any]], Any]
@@ -17,62 +16,47 @@ class Task:
     description: str | None = None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.name, str) or not self.name.strip():
-            raise WorkflowValidationError("Nazwa zadania nie moze byc pusta.")
-        if not callable(self.function):
-            raise WorkflowValidationError("Funkcja zadania musi byc wywolywalna.")
+        if not self.name.strip():
+            raise WorkflowValidationError("Nazwa zadania nie moze byc pusta")
 
-        dependencies = frozenset(self.dependencies)
-        if self.name in dependencies:
-            raise WorkflowValidationError(
-                f"Zadanie '{self.name}' nie moze zalezec od samego siebie."
-            )
+        self.dependencies = frozenset(self.dependencies)
+        if self.name in self.dependencies:
+            raise WorkflowValidationError("Zadanie nie moze zalezec od samego siebie")
 
-        object.__setattr__(self, "dependencies", dependencies)
-        object.__setattr__(
-            self, "params", MappingProxyType(deepcopy(dict(self.params)))
-        )
+        self.params = deepcopy(dict(self.params))
 
 
 class Workflow:
     def __init__(self) -> None:
-        self._tasks: dict[str, Task] = {}
-
-    @property
-    def tasks(self) -> Mapping[str, Task]:
-        return MappingProxyType(self._tasks)
+        self.tasks: dict[str, Task] = {}
 
     def add_task(self, task: Task) -> None:
-        if task.name in self._tasks:
-            raise WorkflowValidationError(
-                f"Zadanie o nazwie '{task.name}' juz istnieje."
-            )
-        self._tasks[task.name] = task
+        if task.name in self.tasks:
+            raise WorkflowValidationError(f"Zadanie '{task.name}' juz istnieje")
+        self.tasks[task.name] = task
 
     def validate(self) -> None:
-        for task in self._tasks.values():
+        for name, task in self.tasks.items():
             for dependency in task.dependencies:
-                if dependency not in self._tasks:
+                if dependency not in self.tasks:
                     raise WorkflowValidationError(
-                        f"Zadanie '{task.name}' ma nieznana zaleznosc '{dependency}'."
+                        f"Brak zaleznosci '{dependency}' dla zadania '{name}'"
                     )
 
-        visited: set[str] = set()
         visiting: set[str] = set()
+        visited: set[str] = set()
 
         def visit(name: str) -> None:
             if name in visiting:
-                raise WorkflowValidationError(
-                    f"Wykryto cykl zaleznosci przy zadaniu '{name}'."
-                )
+                raise WorkflowValidationError(f"Wykryto cykl przy zadaniu '{name}'")
             if name in visited:
                 return
 
             visiting.add(name)
-            for dependency in sorted(self._tasks[name].dependencies):
+            for dependency in self.tasks[name].dependencies:
                 visit(dependency)
             visiting.remove(name)
             visited.add(name)
 
-        for name in sorted(self._tasks):
+        for name in self.tasks:
             visit(name)

@@ -1,18 +1,14 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyflow-lab"
 version = "0.1.0"
-description = "Model workflowu i planowanie grafu DAG"
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
