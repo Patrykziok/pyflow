@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Callable, Mapping
 
 
@@ -60,3 +61,41 @@ class Workflow:
 
         for name in self.tasks:
             visit(name)
+
+
+class TaskStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+
+
+@dataclass
+class TaskState:
+    status: TaskStatus = TaskStatus.PENDING
+    started_at: float | None = None
+    finished_at: float | None = None
+    error: str | None = None
+
+    @property
+    def duration(self) -> float:
+        if self.started_at is None or self.finished_at is None:
+            return 0.0
+        return self.finished_at - self.started_at
+
+
+@dataclass
+class RunResult:
+    outputs: dict[str, Any]
+    task_states: dict[str, TaskState]
+    started_at: float
+    finished_at: float
+
+    @property
+    def succeeded(self) -> bool:
+        return all(state.status == TaskStatus.SUCCEEDED for state in self.task_states.values())
+
+    @property
+    def duration(self) -> float:
+        return self.finished_at - self.started_at
